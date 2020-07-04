@@ -27,25 +27,78 @@ const CartContext = createContext<CartContext | null>(null);
 
 const CartProvider: React.FC = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
 
   useEffect(() => {
     async function loadProducts(): Promise<void> {
-      // TODO LOAD ITEMS FROM ASYNC STORAGE
+      const productsStored = await AsyncStorage.getItem('products');
+      if (productsStored) {
+        const productsStoredArr: Product[] = JSON.parse(productsStored);
+        setProducts(productsStoredArr);
+      }
+      setProductsLoaded(true);
     }
 
     loadProducts();
   }, []);
 
+  useEffect(() => {
+    async function storeProducts(): Promise<void> {
+      await AsyncStorage.setItem('products', JSON.stringify(products));
+    }
+    if (productsLoaded) {
+      storeProducts();
+    }
+  }, [products, productsLoaded]);
+
   const addToCart = useCallback(async product => {
-    // TODO ADD A NEW ITEM TO THE CART
+    setProducts(oldState => {
+      const thisProductInCart = { ...product, quantity: 1 };
+      const othersProductsInCart = oldState.filter(item => {
+        if (item.id === product.id) {
+          thisProductInCart.quantity = item.quantity + 1;
+          return false;
+        }
+        return true;
+      });
+      return [...othersProductsInCart, thisProductInCart];
+    });
   }, []);
 
   const increment = useCallback(async id => {
-    // TODO INCREMENTS A PRODUCT QUANTITY IN THE CART
+    setProducts(oldState => {
+      const productsCartUpdated = oldState.map(product => {
+        if (product.id === id) {
+          return {
+            ...product,
+            quantity: product.quantity + 1,
+          };
+        }
+        return product;
+      });
+      return productsCartUpdated;
+    });
   }, []);
 
   const decrement = useCallback(async id => {
-    // TODO DECREMENTS A PRODUCT QUANTITY IN THE CART
+    setProducts(oldState => {
+      const productsCartUpdated = oldState.reduce(
+        (accumulator: Product[], product) => {
+          const productUpdated = product;
+          if (product.id === id) {
+            const { quantity } = product;
+            const newQuantity = quantity > 1 ? quantity - 1 : 0;
+            if (newQuantity === 0) {
+              return accumulator;
+            }
+            productUpdated.quantity = newQuantity;
+          }
+          return [...accumulator, productUpdated];
+        },
+        [],
+      );
+      return productsCartUpdated;
+    });
   }, []);
 
   const value = React.useMemo(
